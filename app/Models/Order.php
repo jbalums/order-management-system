@@ -99,7 +99,7 @@ class Order extends Model
     {
         $total = $this->items()
             ->get()
-            ->sum(fn (OrderItem $item): float => $item->quantity * (float) $item->unit_price);
+            ->sum(fn (OrderItem $item): float => $item->remainingQuantity() * (float) $item->unit_price);
 
         $this->forceFill(['total_amount' => $total])->save();
     }
@@ -156,27 +156,135 @@ class Order extends Model
         DB::transaction(function (): void {
             $order = self::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
 
-            if ($order->status === self::STATUS_CANCELLED) {
+            $this->ensureCancellable($order);
+
+            $itemQuantities = $order->items()
+                ->lockForUpdate()
+                ->get()
+                ->mapWithKeys(fn (OrderItem $item): array => [$item->id => $item->remainingQuantity()])
+                ->filter(fn (int $quantity): bool => $quantity > 0)
+                ->all();
+
+            if ($itemQuantities === []) {
                 throw new DomainException('This order is already cancelled.');
             }
 
-            if ($order->status === self::STATUS_CONFIRMED) {
-                foreach ($order->items()->get() as $item) {
-                    $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->firstOrFail();
-                    $product->increment('stock_quantity', $item->quantity);
-
-                    $product->inventoryLogs()->create([
-                        'order_id' => $order->id,
-                        'change_type' => 'return',
-                        'quantity_change' => $item->quantity,
-                        'reason' => "Order {$order->order_number} cancelled",
-                    ]);
-                }
-            }
-
-            $order->forceFill(['status' => self::STATUS_CANCELLED])->save();
+            $this->applyCancellations($order, $itemQuantities);
         });
 
         $this->refresh();
+    }
+
+    /**
+     * @param  array<int, int>  $itemQuantities
+     */
+    public function cancelItems(array $itemQuantities): void
+    {
+        DB::transaction(function () use ($itemQuantities): void {
+            $order = self::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
+
+            $this->ensureCancellable($order);
+            $this->applyCancellations($order, $this->normalizeCancellations($itemQuantities));
+        });
+
+        $this->refresh();
+    }
+
+    private function ensureCancellable(Order $order): void
+    {
+        if ($order->status === self::STATUS_CANCELLED) {
+            throw new DomainException('This order is already cancelled.');
+        }
+
+        if (! in_array($order->status, [self::STATUS_CONFIRMED, self::STATUS_PARTIALLY_CANCELLED], true)) {
+            throw new DomainException('Only confirmed orders can be cancelled.');
+        }
+    }
+
+    /**
+     * @param  array<int, int>  $itemQuantities
+     * @return array<int, int>
+     */
+    private function normalizeCancellations(array $itemQuantities): array
+    {
+        if ($itemQuantities === []) {
+            throw new DomainException('At least one order item must be cancelled.');
+        }
+
+        $normalized = [];
+
+        foreach ($itemQuantities as $itemId => $quantity) {
+            $itemId = (int) $itemId;
+            $quantity = (int) $quantity;
+
+            if ($itemId <= 0 || $quantity <= 0) {
+                throw new DomainException('Cancellation quantities must be positive.');
+            }
+
+            $normalized[$itemId] = $quantity;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<int, int>  $itemQuantities
+     */
+    private function applyCancellations(Order $order, array $itemQuantities): void
+    {
+        $items = $order->items()
+            ->whereKey(array_keys($itemQuantities))
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        if ($items->count() !== count($itemQuantities)) {
+            throw new DomainException('One or more order items do not belong to this order.');
+        }
+
+        $statusFrom = $order->status;
+
+        foreach ($itemQuantities as $itemId => $quantity) {
+            /** @var OrderItem $item */
+            $item = $items->get($itemId);
+            $remainingQuantity = $item->remainingQuantity();
+
+            if ($quantity > $remainingQuantity) {
+                throw new DomainException('Cannot cancel more than the remaining ordered quantity.');
+            }
+
+            $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->firstOrFail();
+            $product->increment('stock_quantity', $quantity);
+
+            $item->forceFill([
+                'cancelled_quantity' => $item->cancelled_quantity + $quantity,
+            ])->save();
+
+            $product->inventoryLogs()->create([
+                'order_id' => $order->id,
+                'change_type' => 'return',
+                'quantity_change' => $quantity,
+                'reason' => "Order {$order->order_number} cancelled",
+            ]);
+        }
+
+        $order->updateTotal();
+
+        $remainingQuantity = $order->items()
+            ->get()
+            ->sum(fn (OrderItem $item): int => $item->remainingQuantity());
+        $statusTo = $remainingQuantity === 0 ? self::STATUS_CANCELLED : self::STATUS_PARTIALLY_CANCELLED;
+        $description = $statusTo === self::STATUS_CANCELLED
+            ? "Order {$order->order_number} cancelled"
+            : "Order {$order->order_number} partially cancelled";
+
+        $order->activities()->create([
+            'activity_type' => $statusTo,
+            'description' => $description,
+            'status_from' => $statusFrom,
+            'status_to' => $statusTo,
+        ]);
+
+        $order->forceFill(['status' => $statusTo])->save();
     }
 }

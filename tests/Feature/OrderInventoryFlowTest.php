@@ -86,14 +86,18 @@ class OrderInventoryFlowTest extends TestCase
         $this->assertDatabaseCount('inventory_logs', 2);
     }
 
-    public function test_draft_order_cancellation_changes_status_without_inventory_change(): void
+    public function test_draft_order_cancellation_is_prevented_without_inventory_change(): void
     {
         $order = Order::factory()->create();
 
-        $order->cancel();
+        $this->expectException(DomainException::class);
 
-        $this->assertSame(Order::STATUS_CANCELLED, $order->status);
-        $this->assertDatabaseCount('inventory_logs', 0);
+        try {
+            $order->cancel();
+        } finally {
+            $this->assertSame(Order::STATUS_DRAFT, $order->refresh()->status);
+            $this->assertDatabaseCount('inventory_logs', 0);
+        }
     }
 
     public function test_foundation_models_have_relationships_casts_and_defaults(): void

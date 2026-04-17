@@ -137,6 +137,7 @@ class OrderConfirmationTest extends TestCase
         $order = Order::factory()->create();
 
         $order->addItem($product, 2);
+        $order->confirm();
         $order->cancel();
 
         $this->expectException(DomainException::class);
@@ -146,8 +147,8 @@ class OrderConfirmationTest extends TestCase
         } finally {
             $this->assertSame(Order::STATUS_CANCELLED, $order->refresh()->status);
             $this->assertSame(10, $product->refresh()->stock_quantity);
-            $this->assertDatabaseCount('inventory_logs', 0);
-            $this->assertDatabaseCount('order_activities', 0);
+            $this->assertDatabaseCount('inventory_logs', 2);
+            $this->assertDatabaseCount('order_activities', 2);
         }
     }
 }

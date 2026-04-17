@@ -23,6 +23,7 @@ class OrderItemFactory extends Factory
             'order_id' => Order::factory(),
             'product_id' => Product::factory(),
             'quantity' => fake()->numberBetween(1, 5),
+            'cancelled_quantity' => 0,
             'unit_price' => fake()->randomFloat(2, 5, 250),
         ];
     }
