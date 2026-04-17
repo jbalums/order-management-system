@@ -35,7 +35,7 @@ new #[Title('Dashboard')] class extends Component {
     public function revenue(): string
     {
         $revenue = Order::query()
-            ->where('status', Order::STATUS_CONFIRMED)
+            ->whereIn('status', [Order::STATUS_CONFIRMED, Order::STATUS_PARTIALLY_CANCELLED])
             ->sum('total_amount');
 
         return number_format((float) $revenue, 2);

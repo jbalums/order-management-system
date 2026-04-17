@@ -3,8 +3,10 @@
 use App\Models\Order;
 use App\Models\Product;
 use Flux\Flux;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -16,6 +18,15 @@ new #[Title('Orders')] class extends Component {
     public array $items = [
         ['product_id' => '', 'quantity' => 1],
     ];
+
+    public ?int $cancelling_order_id = null;
+
+    public string $cancelling_order_number = '';
+
+    /**
+     * @var array<int, array{order_item_id: int, product_name: string, ordered_quantity: int, cancelled_quantity: int, remaining_quantity: int, cancel_quantity: int}>
+     */
+    public array $cancellation_items = [];
 
     public function openOrderForm(): void
     {
@@ -34,6 +45,50 @@ new #[Title('Orders')] class extends Component {
     public function dismissOrderForm(): void
     {
         $this->resetOrderForm();
+    }
+
+    public function openCancellationForm(int $orderId): void
+    {
+        $this->resetCancellationForm();
+
+        $order = Order::query()
+            ->with('items.product')
+            ->findOrFail($orderId);
+
+        if (! in_array($order->status, [Order::STATUS_CONFIRMED, Order::STATUS_PARTIALLY_CANCELLED], true)) {
+            $this->addError('orders', __('Only confirmed orders can be cancelled.'));
+
+            return;
+        }
+
+        $this->cancelling_order_id = $order->id;
+        $this->cancelling_order_number = $order->order_number;
+        $this->cancellation_items = $order->items
+            ->filter(fn ($item): bool => $item->remainingQuantity() > 0)
+            ->map(fn ($item): array => [
+                'order_item_id' => $item->id,
+                'product_name' => $item->product->name,
+                'ordered_quantity' => $item->quantity,
+                'cancelled_quantity' => $item->cancelled_quantity,
+                'remaining_quantity' => $item->remainingQuantity(),
+                'cancel_quantity' => 0,
+            ])
+            ->values()
+            ->all();
+
+        Flux::modal('cancel-order-form')->show();
+    }
+
+    public function closeCancellationForm(): void
+    {
+        $this->resetCancellationForm();
+
+        Flux::modal('cancel-order-form')->close();
+    }
+
+    public function dismissCancellationForm(): void
+    {
+        $this->resetCancellationForm();
     }
 
     public function addLine(): void
@@ -84,6 +139,46 @@ new #[Title('Orders')] class extends Component {
         Flux::toast(variant: 'success', text: __('Order cancelled.'));
     }
 
+    public function cancelSelectedItems(): void
+    {
+        $validated = $this->validate([
+            'cancelling_order_id' => ['required', 'integer', 'exists:orders,id'],
+            'cancellation_items' => ['required', 'array'],
+            'cancellation_items.*.order_item_id' => ['required', 'integer', 'exists:order_items,id'],
+            'cancellation_items.*.cancel_quantity' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $itemQuantities = collect($validated['cancellation_items'])
+            ->mapWithKeys(fn (array $item): array => [(int) $item['order_item_id'] => (int) $item['cancel_quantity']])
+            ->filter(fn (int $quantity): bool => $quantity > 0)
+            ->all();
+
+        if ($itemQuantities === []) {
+            throw ValidationException::withMessages([
+                'cancellation_items' => __('Choose at least one quantity to cancel.'),
+            ]);
+        }
+
+        try {
+            Order::query()
+                ->findOrFail($validated['cancelling_order_id'])
+                ->cancelItems($itemQuantities);
+        } catch (ModelNotFoundException) {
+            $this->addError('cancellation_items', __('Order could not be found.'));
+
+            return;
+        } catch (\DomainException $exception) {
+            $this->addError('cancellation_items', $exception->getMessage());
+
+            return;
+        }
+
+        $this->resetCancellationForm();
+
+        Flux::modal('cancel-order-form')->close();
+        Flux::toast(variant: 'success', text: __('Order partially cancelled.'));
+    }
+
     public function confirmOrder(int $orderId): void
     {
         try {
@@ -127,6 +222,12 @@ new #[Title('Orders')] class extends Component {
         ];
 
         $this->resetValidation();
+    }
+
+    private function resetCancellationForm(): void
+    {
+        $this->reset('cancelling_order_id', 'cancelling_order_number', 'cancellation_items');
+        $this->resetValidation(['cancelling_order_id', 'cancellation_items']);
     }
 };
 ?>
@@ -192,6 +293,58 @@ new #[Title('Orders')] class extends Component {
         </form>
     </flux:modal>
 
+    <flux:modal name="cancel-order-form" class="w-full max-w-2xl" @close="dismissCancellationForm">
+        <form wire:submit="cancelSelectedItems" class="space-y-6">
+            <div class="space-y-2">
+                <flux:heading size="lg" level="2">{{ __('Partial cancellation') }}</flux:heading>
+                <flux:subheading>
+                    {{ __('Choose quantities to cancel for :order.', ['order' => $cancelling_order_number]) }}
+                </flux:subheading>
+            </div>
+
+            @error('cancellation_items')
+                <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+            @enderror
+
+            <div class="space-y-3">
+                @foreach ($cancellation_items as $index => $item)
+                    <div wire:key="cancellation-item-{{ $item['order_item_id'] }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_10rem] sm:items-end">
+                        <div>
+                            <div class="font-medium">{{ $item['product_name'] }}</div>
+                            <div class="text-sm text-neutral-600 dark:text-neutral-300">
+                                {{ __('Ordered: :ordered | Already cancelled: :cancelled | Remaining: :remaining', [
+                                    'ordered' => $item['ordered_quantity'],
+                                    'cancelled' => $item['cancelled_quantity'],
+                                    'remaining' => $item['remaining_quantity'],
+                                ]) }}
+                            </div>
+                        </div>
+
+                        <flux:input
+                            wire:model="cancellation_items.{{ $index }}.cancel_quantity"
+                            :label="__('Cancel quantity')"
+                            type="number"
+                            min="0"
+                            max="{{ $item['remaining_quantity'] }}"
+                            step="1"
+                            required
+                        />
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <flux:button type="button" variant="filled" wire:click="closeCancellationForm">
+                    {{ __('Cancel') }}
+                </flux:button>
+
+                <flux:button type="submit" variant="danger">
+                    {{ __('Cancel selected quantities') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
     <div class="space-y-3">
         <flux:heading level="2">{{ __('Recent orders') }}</flux:heading>
 
@@ -216,7 +369,11 @@ new #[Title('Orders')] class extends Component {
                             </flux:button>
                         @endif
 
-                        @if ($order->status !== Order::STATUS_CANCELLED)
+                        @if (in_array($order->status, [Order::STATUS_CONFIRMED, Order::STATUS_PARTIALLY_CANCELLED], true))
+                            <flux:button type="button" variant="filled" icon="minus-circle" wire:click="openCancellationForm({{ $order->id }})">
+                                {{ __('Partial') }}
+                            </flux:button>
+
                             <flux:button type="button" variant="danger" icon="x-mark" wire:click="cancelOrder({{ $order->id }})">
                                 {{ __('Cancel') }}
                             </flux:button>

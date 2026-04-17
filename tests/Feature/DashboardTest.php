@@ -51,4 +51,30 @@ class DashboardTest extends TestCase
             ->assertSee('Notebook')
             ->assertSee($order->order_number);
     }
+
+    public function test_dashboard_revenue_includes_partially_cancelled_active_amounts(): void
+    {
+        $confirmedProduct = Product::factory()->create([
+            'price' => 20,
+            'stock_quantity' => 10,
+        ]);
+        $partiallyCancelledProduct = Product::factory()->create([
+            'price' => 15,
+            'stock_quantity' => 10,
+        ]);
+        $confirmedOrder = Order::factory()->create();
+        $partiallyCancelledOrder = Order::factory()->create();
+
+        $confirmedOrder->addItem($confirmedProduct, 2);
+        $confirmedOrder->confirm();
+        $partiallyCancelledItem = $partiallyCancelledOrder->addItem($partiallyCancelledProduct, 4);
+        $partiallyCancelledOrder->confirm();
+        $partiallyCancelledOrder->cancelItems([$partiallyCancelledItem->id => 1]);
+
+        $this->actingAs(User::factory()->create());
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('$85.00');
+    }
 }

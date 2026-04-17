@@ -196,4 +196,50 @@ class OrderManagementTest extends TestCase
             'quantity_change' => 3,
         ]);
     }
+
+    public function test_draft_order_does_not_show_cancellation_actions(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $order = Order::factory()->create();
+
+        Livewire::test('pages::orders')
+            ->assertSee($order->order_number)
+            ->assertDontSee('wire:click="cancelOrder('.$order->id.')"', false)
+            ->assertDontSee('wire:click="openCancellationForm('.$order->id.')"', false);
+    }
+
+    public function test_order_items_can_be_partially_cancelled_from_orders_page(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $product = Product::factory()->create([
+            'name' => 'Shipping Box',
+            'price' => 10,
+            'stock_quantity' => 8,
+        ]);
+        $order = Order::factory()->create();
+        $item = $order->addItem($product, 5);
+
+        $order->confirm();
+
+        Livewire::test('pages::orders')
+            ->call('openCancellationForm', $order->id)
+            ->assertSet('cancelling_order_id', $order->id)
+            ->assertSet('cancelling_order_number', $order->order_number)
+            ->assertSee('Shipping Box')
+            ->set('cancellation_items.0.cancel_quantity', 2)
+            ->call('cancelSelectedItems')
+            ->assertHasNoErrors()
+            ->assertDispatched('modal-close', name: 'cancel-order-form');
+
+        $this->assertSame(Order::STATUS_PARTIALLY_CANCELLED, $order->refresh()->status);
+        $this->assertSame('30.00', $order->total_amount);
+        $this->assertSame(5, $product->refresh()->stock_quantity);
+        $this->assertSame(2, $item->refresh()->cancelled_quantity);
+        $this->assertDatabaseHas(InventoryLog::class, [
+            'product_id' => $product->id,
+            'order_id' => $order->id,
+            'change_type' => 'return',
+            'quantity_change' => 2,
+        ]);
+    }
 }
