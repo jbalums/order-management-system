@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Records inventory activity such as manual additions, sales deductions, and
+ * cancellation restores. Positive quantity changes add stock; negative changes
+ * remove stock.
+ */
 #[Fillable(['product_id', 'order_id', 'change_type', 'quantity_change', 'reason'])]
 class InventoryLog extends Model
 {

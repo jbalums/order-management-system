@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Stores sellable products and the current on-hand quantity used by orders.
+ */
 #[Fillable(['name', 'description', 'price', 'stock_quantity'])]
 class Product extends Model
 {

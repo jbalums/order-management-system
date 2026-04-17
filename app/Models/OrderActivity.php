@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Stores order history entries for status changes such as confirmation, full
+ * cancellation, and partial cancellation.
+ */
 #[Fillable(['order_id', 'activity_type', 'description', 'status_from', 'status_to'])]
 class OrderActivity extends Model
 {

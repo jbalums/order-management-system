@@ -11,6 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+/**
+ * Handles the main order workflow: draft creation, confirmation, full
+ * cancellation, partial cancellation, inventory movement, and order activity.
+ */
 #[Fillable(['order_number', 'status', 'total_amount'])]
 class Order extends Model
 {
@@ -95,6 +99,9 @@ class Order extends Model
         return $item;
     }
 
+    /**
+     * Recalculate the active order amount from quantities that have not been cancelled.
+     */
     public function updateTotal(): void
     {
         $total = $this->items()
@@ -104,6 +111,9 @@ class Order extends Model
         $this->forceFill(['total_amount' => $total])->save();
     }
 
+    /**
+     * Confirming an order is the point where stock is deducted and sale logs are created.
+     */
     public function confirm(): void
     {
         DB::transaction(function (): void {
@@ -122,6 +132,7 @@ class Order extends Model
             $order->updateTotal();
 
             foreach ($items as $item) {
+                // Lock the product so two confirmations cannot spend the same stock.
                 $product = Product::query()->whereKey($item->product_id)->lockForUpdate()->firstOrFail();
 
                 if ($product->stock_quantity < $item->quantity) {
@@ -151,6 +162,9 @@ class Order extends Model
         $this->refresh();
     }
 
+    /**
+     * Cancel every remaining active quantity on the order.
+     */
     public function cancel(): void
     {
         DB::transaction(function (): void {
@@ -176,6 +190,8 @@ class Order extends Model
     }
 
     /**
+     * Cancel selected order item quantities while preserving active quantities.
+     *
      * @param  array<int, int>  $itemQuantities
      */
     public function cancelItems(array $itemQuantities): void
@@ -202,6 +218,8 @@ class Order extends Model
     }
 
     /**
+     * Convert cancellation input into a safe item ID to positive quantity map.
+     *
      * @param  array<int, int>  $itemQuantities
      * @return array<int, int>
      */
@@ -228,6 +246,9 @@ class Order extends Model
     }
 
     /**
+     * Restore inventory, update cancelled quantities, recalculate totals, and log
+     * the resulting full or partial cancellation in one database transaction.
+     *
      * @param  array<int, int>  $itemQuantities
      */
     private function applyCancellations(Order $order, array $itemQuantities): void
