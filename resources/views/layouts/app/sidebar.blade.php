@@ -23,6 +23,9 @@
                 <flux:sidebar.item icon="shopping-cart" :href="route('orders.index')" :current="request()->routeIs('orders.*')" wire:navigate>
                     {{ __('Orders') }}
                 </flux:sidebar.item>
+                <flux:sidebar.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
+                    {{ __('Reports') }}
+                </flux:sidebar.item>
                 <flux:sidebar.item icon="list-bullet" :href="route('logs.index')" :current="request()->routeIs('logs.*')" wire:navigate>
                     {{ __('Logs') }}
                 </flux:sidebar.item>
