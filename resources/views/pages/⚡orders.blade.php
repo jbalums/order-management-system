@@ -33,32 +33,24 @@ new #[Title('Orders')] class extends Component {
     {
         $validated = $this->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
 
-        try {
-            DB::transaction(function () use ($validated): void {
-                $order = Order::create();
+        DB::transaction(function () use ($validated): void {
+            $order = Order::create();
 
-                foreach ($validated['items'] as $item) {
-                    $product = Product::query()->findOrFail($item['product_id']);
-                    $order->addItem($product, (int) $item['quantity']);
-                }
-
-                $order->confirm();
-            });
-        } catch (\DomainException $exception) {
-            $this->addError('items', $exception->getMessage());
-
-            return;
-        }
+            foreach ($validated['items'] as $item) {
+                $product = Product::query()->findOrFail($item['product_id']);
+                $order->addItem($product, (int) $item['quantity']);
+            }
+        });
 
         $this->items = [
             ['product_id' => '', 'quantity' => 1],
         ];
 
-        Flux::toast(variant: 'success', text: __('Order confirmed.'));
+        Flux::toast(variant: 'success', text: __('Order created.'));
     }
 
     public function cancelOrder(int $orderId): void
@@ -102,7 +94,7 @@ new #[Title('Orders')] class extends Component {
 <section class="w-full space-y-6">
     <div>
         <flux:heading size="xl" level="1">{{ __('Orders') }}</flux:heading>
-        <flux:subheading>{{ __('Create confirmed orders and cancel them when needed.') }}</flux:subheading>
+        <flux:subheading>{{ __('Create draft orders with product quantities and totals.') }}</flux:subheading>
     </div>
 
     <form wire:submit="createOrder" class="space-y-4 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
@@ -135,7 +127,7 @@ new #[Title('Orders')] class extends Component {
             @endforeach
         </div>
 
-        <flux:button type="submit" variant="primary">{{ __('Confirm order') }}</flux:button>
+        <flux:button type="submit" variant="primary">{{ __('Create order') }}</flux:button>
     </form>
 
     <div class="space-y-3">
