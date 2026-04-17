@@ -118,7 +118,7 @@ php artisan test
 
 ## D. Demo Link
 
-Demo link: _To be added later._
+Demo link: https://joel-baluma-order-management-system.laravel.cloud/
 
 ## E. Challenges Faced and Solutions
 
