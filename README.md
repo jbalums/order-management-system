@@ -120,6 +120,20 @@ php artisan test
 
 Demo link: https://joel-baluma-order-management-system.laravel.cloud/
 
+Demo Account
+
+Email:
+
+```text
+admin@example.com
+```
+
+Password:
+
+```text
+admin@Password123
+```
+
 ## E. Challenges Faced and Solutions
 
 ### Keeping Inventory and Orders Consistent
