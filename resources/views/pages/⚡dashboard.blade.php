@@ -92,7 +92,7 @@ new #[Title('Dashboard')] class extends Component {
 
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <flux:text>{{ __('Revenue') }}</flux:text>
-            <div class="mt-2 text-3xl font-semibold">${{ $this->revenue }}</div>
+            <div class="mt-2 text-3xl font-semibold">₱{{ $this->revenue }}</div>
         </div>
     </div>
 
@@ -101,14 +101,14 @@ new #[Title('Dashboard')] class extends Component {
             <flux:heading level="2">{{ __('Recent inventory activity') }}</flux:heading>
 
             @forelse ($this->inventoryLogs as $log)
-                <div wire:key="inventory-log-{{ $log->id }}" class="border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
-                    <div class="font-medium">{{ $log->product->name }}</div>
-                    <div class="text-neutral-600 dark:text-neutral-300">
-                        {{ ucfirst($log->change_type) }}: {{ $log->quantity_change }} - {{ $log->reason }}
-                    </div>
+            <div wire:key="inventory-log-{{ $log->id }}" class="border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
+                <div class="font-medium">{{ $log->product->name }}</div>
+                <div class="text-neutral-600 dark:text-neutral-300">
+                    {{ ucfirst($log->change_type) }}: {{ $log->quantity_change }} - {{ $log->reason }}
                 </div>
+            </div>
             @empty
-                <flux:text>{{ __('No inventory activity yet.') }}</flux:text>
+            <flux:text>{{ __('No inventory activity yet.') }}</flux:text>
             @endforelse
         </div>
 
@@ -116,14 +116,14 @@ new #[Title('Dashboard')] class extends Component {
             <flux:heading level="2">{{ __('Recent order activity') }}</flux:heading>
 
             @forelse ($this->recentOrders as $order)
-                <div wire:key="recent-order-{{ $order->id }}" class="border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
-                    <div class="font-medium">{{ $order->order_number }}</div>
-                    <div class="text-neutral-600 dark:text-neutral-300">
-                        {{ ucfirst(str_replace('_', ' ', $order->status)) }} - ${{ $order->total_amount }}
-                    </div>
+            <div wire:key="recent-order-{{ $order->id }}" class="border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
+                <div class="font-medium">{{ $order->order_number }}</div>
+                <div class="text-neutral-600 dark:text-neutral-300">
+                    {{ ucfirst(str_replace('_', ' ', $order->status)) }} - ₱{{ $order->total_amount }}
                 </div>
+            </div>
             @empty
-                <flux:text>{{ __('No order activity yet.') }}</flux:text>
+            <flux:text>{{ __('No order activity yet.') }}</flux:text>
             @endforelse
         </div>
     </div>

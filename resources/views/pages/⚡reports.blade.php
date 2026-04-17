@@ -107,7 +107,7 @@ new #[Title('Reports')] class extends Component {
 
         <div class="rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <flux:text>{{ __('Active revenue') }}</flux:text>
-            <div class="mt-2 text-3xl font-semibold">${{ $this->activeRevenue }}</div>
+            <div class="mt-2 text-3xl font-semibold">₱{{ $this->activeRevenue }}</div>
         </div>
     </div>
 
@@ -142,16 +142,16 @@ new #[Title('Reports')] class extends Component {
             <flux:heading level="2">{{ __('Current Stock Overview') }}</flux:heading>
 
             @forelse ($this->inventoryOverview as $product)
-                <div wire:key="report-product-{{ $product->id }}" class="flex items-center justify-between gap-4 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
-                    <div>
-                        <div class="font-medium">{{ $product->name }}</div>
-                        <div class="text-neutral-600 dark:text-neutral-300">${{ $product->price }}</div>
-                    </div>
-
-                    <flux:badge>{{ __('Stock: :count', ['count' => $product->stock_quantity]) }}</flux:badge>
+            <div wire:key="report-product-{{ $product->id }}" class="flex items-center justify-between gap-4 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
+                <div>
+                    <div class="font-medium">{{ $product->name }}</div>
+                    <div class="text-neutral-600 dark:text-neutral-300">₱{{ $product->price }}</div>
                 </div>
+
+                <flux:badge>{{ __('Stock: :count', ['count' => $product->stock_quantity]) }}</flux:badge>
+            </div>
             @empty
-                <flux:text>{{ __('No products yet.') }}</flux:text>
+            <flux:text>{{ __('No products yet.') }}</flux:text>
             @endforelse
         </div>
     </div>

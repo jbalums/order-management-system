@@ -64,8 +64,8 @@ new #[Title('Orders')] class extends Component {
         $this->cancelling_order_id = $order->id;
         $this->cancelling_order_number = $order->order_number;
         $this->cancellation_items = $order->items
-            ->filter(fn ($item): bool => $item->remainingQuantity() > 0)
-            ->map(fn ($item): array => [
+            ->filter(fn($item): bool => $item->remainingQuantity() > 0)
+            ->map(fn($item): array => [
                 'order_item_id' => $item->id,
                 'product_name' => $item->product->name,
                 'ordered_quantity' => $item->quantity,
@@ -149,8 +149,8 @@ new #[Title('Orders')] class extends Component {
         ]);
 
         $itemQuantities = collect($validated['cancellation_items'])
-            ->mapWithKeys(fn (array $item): array => [(int) $item['order_item_id'] => (int) $item['cancel_quantity']])
-            ->filter(fn (int $quantity): bool => $quantity > 0)
+            ->mapWithKeys(fn(array $item): array => [(int) $item['order_item_id'] => (int) $item['cancel_quantity']])
+            ->filter(fn(int $quantity): bool => $quantity > 0)
             ->all();
 
         if ($itemQuantities === []) {
@@ -258,26 +258,26 @@ new #[Title('Orders')] class extends Component {
             </div>
 
             @error('items')
-                <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+            <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
             @enderror
 
             <div class="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
                 @foreach ($items as $index => $item)
-                    <div wire:key="order-item-{{ $index }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
-                        <flux:select wire:model="items.{{ $index }}.product_id" :label="__('Product')" placeholder="{{ __('Choose a product') }}">
-                            @foreach ($this->products as $product)
-                                <flux:select.option :value="$product->id" wire:key="order-product-{{ $index }}-{{ $product->id }}">
-                                    {{ $product->name }} ({{ __('stock: :count', ['count' => $product->stock_quantity]) }})
-                                </flux:select.option>
-                            @endforeach
-                        </flux:select>
+                <div wire:key="order-item-{{ $index }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+                    <flux:select wire:model="items.{{ $index }}.product_id" :label="__('Product')" placeholder="{{ __('Choose a product') }}">
+                        @foreach ($this->products as $product)
+                        <flux:select.option :value="$product->id" wire:key="order-product-{{ $index }}-{{ $product->id }}">
+                            {{ $product->name }} ({{ __('stock: :count', ['count' => $product->stock_quantity]) }})
+                        </flux:select.option>
+                        @endforeach
+                    </flux:select>
 
-                        <flux:input wire:model="items.{{ $index }}.quantity" :label="__('Quantity')" type="number" min="1" step="1" required />
+                    <flux:input wire:model="items.{{ $index }}.quantity" :label="__('Quantity')" type="number" min="1" step="1" required />
 
-                        <flux:button type="button" variant="ghost" icon="trash" wire:click="removeLine({{ $index }})" :disabled="count($items) === 1">
-                            {{ __('Remove') }}
-                        </flux:button>
-                    </div>
+                    <flux:button type="button" variant="ghost" icon="trash" wire:click="removeLine({{ $index }})" :disabled="count($items) === 1">
+                        {{ __('Remove') }}
+                    </flux:button>
+                </div>
                 @endforeach
             </div>
 
@@ -303,33 +303,32 @@ new #[Title('Orders')] class extends Component {
             </div>
 
             @error('cancellation_items')
-                <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+            <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
             @enderror
 
             <div class="space-y-3">
                 @foreach ($cancellation_items as $index => $item)
-                    <div wire:key="cancellation-item-{{ $item['order_item_id'] }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_10rem] sm:items-end">
-                        <div>
-                            <div class="font-medium">{{ $item['product_name'] }}</div>
-                            <div class="text-sm text-neutral-600 dark:text-neutral-300">
-                                {{ __('Ordered: :ordered | Already cancelled: :cancelled | Remaining: :remaining', [
+                <div wire:key="cancellation-item-{{ $item['order_item_id'] }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_10rem] sm:items-end">
+                    <div>
+                        <div class="font-medium">{{ $item['product_name'] }}</div>
+                        <div class="text-sm text-neutral-600 dark:text-neutral-300">
+                            {{ __('Ordered: :ordered | Already cancelled: :cancelled | Remaining: :remaining', [
                                     'ordered' => $item['ordered_quantity'],
                                     'cancelled' => $item['cancelled_quantity'],
                                     'remaining' => $item['remaining_quantity'],
                                 ]) }}
-                            </div>
                         </div>
-
-                        <flux:input
-                            wire:model="cancellation_items.{{ $index }}.cancel_quantity"
-                            :label="__('Cancel quantity')"
-                            type="number"
-                            min="0"
-                            max="{{ $item['remaining_quantity'] }}"
-                            step="1"
-                            required
-                        />
                     </div>
+
+                    <flux:input
+                        wire:model="cancellation_items.{{ $index }}.cancel_quantity"
+                        :label="__('Cancel quantity')"
+                        type="number"
+                        min="0"
+                        max="{{ $item['remaining_quantity'] }}"
+                        step="1"
+                        required />
+                </div>
                 @endforeach
             </div>
 
@@ -349,56 +348,56 @@ new #[Title('Orders')] class extends Component {
         <flux:heading level="2">{{ __('Recent orders') }}</flux:heading>
 
         @error('orders')
-            <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+        <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
         @enderror
 
         @forelse ($this->orders as $order)
-            <div wire:key="order-{{ $order->id }}" class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <flux:heading level="3">{{ $order->order_number }}</flux:heading>
-                        <flux:text>{{ __('Total: $:amount', ['amount' => $order->total_amount]) }}</flux:text>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-3">
-                        <flux:badge>{{ ucfirst($order->status) }}</flux:badge>
-
-                        @if ($order->status === Order::STATUS_DRAFT)
-                            <flux:button type="button" variant="primary" icon="check" wire:click="confirmOrder({{ $order->id }})">
-                                {{ __('Confirm') }}
-                            </flux:button>
-                        @endif
-
-                        @if (in_array($order->status, [Order::STATUS_CONFIRMED, Order::STATUS_PARTIALLY_CANCELLED], true))
-                            <flux:button type="button" variant="filled" icon="minus-circle" wire:click="openCancellationForm({{ $order->id }})">
-                                {{ __('Partial') }}
-                            </flux:button>
-
-                            <flux:button type="button" variant="danger" icon="x-mark" wire:click="cancelOrder({{ $order->id }})">
-                                {{ __('Cancel') }}
-                            </flux:button>
-                        @endif
-                    </div>
+        <div wire:key="order-{{ $order->id }}" class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <flux:heading level="3">{{ $order->order_number }}</flux:heading>
+                    <flux:text>{{ __('Total: $:amount', ['amount' => $order->total_amount]) }}</flux:text>
                 </div>
 
-                <div class="mt-4 space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
-                    @foreach ($order->items as $item)
-                        <div wire:key="order-{{ $order->id }}-item-{{ $item->id }}">
-                            {{ $item->product->name }} x {{ $item->quantity }} @ ${{ $item->unit_price }}
-                        </div>
-                    @endforeach
+                <div class="flex flex-wrap items-center gap-3">
+                    <flux:badge>{{ ucfirst($order->status) }}</flux:badge>
 
-                    @foreach ($order->activities as $activity)
-                        <div wire:key="order-{{ $order->id }}-activity-{{ $activity->id }}" class="text-neutral-500 dark:text-neutral-400">
-                            {{ $activity->description }}
-                        </div>
-                    @endforeach
+                    @if ($order->status === Order::STATUS_DRAFT)
+                    <flux:button type="button" variant="primary" icon="check" wire:click="confirmOrder({{ $order->id }})">
+                        {{ __('Confirm') }}
+                    </flux:button>
+                    @endif
+
+                    @if (in_array($order->status, [Order::STATUS_CONFIRMED, Order::STATUS_PARTIALLY_CANCELLED], true))
+                    <flux:button type="button" variant="filled" icon="minus-circle" wire:click="openCancellationForm({{ $order->id }})">
+                        {{ __('Partial') }}
+                    </flux:button>
+
+                    <flux:button type="button" variant="danger" icon="x-mark" wire:click="cancelOrder({{ $order->id }})">
+                        {{ __('Cancel') }}
+                    </flux:button>
+                    @endif
                 </div>
             </div>
+
+            <div class="mt-4 space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
+                @foreach ($order->items as $item)
+                <div wire:key="order-{{ $order->id }}-item-{{ $item->id }}">
+                    {{ $item->product->name }} x {{ $item->quantity }} @ ₱{{ $item->unit_price }}
+                </div>
+                @endforeach
+
+                @foreach ($order->activities as $activity)
+                <div wire:key="order-{{ $order->id }}-activity-{{ $activity->id }}" class="text-neutral-500 dark:text-neutral-400">
+                    {{ $activity->description }}
+                </div>
+                @endforeach
+            </div>
+        </div>
         @empty
-            <div class="rounded-xl border border-dashed border-neutral-300 p-6 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
-                {{ __('No orders yet.') }}
-            </div>
+        <div class="rounded-xl border border-dashed border-neutral-300 p-6 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+            {{ __('No orders yet.') }}
+        </div>
         @endforelse
     </div>
 </section>
