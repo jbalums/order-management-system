@@ -70,6 +70,14 @@ class Order extends Model
         return $this->hasMany(InventoryLog::class);
     }
 
+    /**
+     * @return HasMany<OrderActivity, $this>
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(OrderActivity::class);
+    }
+
     public function addItem(Product $product, int $quantity): OrderItem
     {
         if ($this->status !== self::STATUS_DRAFT) {
@@ -129,6 +137,13 @@ class Order extends Model
                     'reason' => "Order {$order->order_number} confirmed",
                 ]);
             }
+
+            $order->activities()->create([
+                'activity_type' => 'confirmed',
+                'description' => "Order {$order->order_number} confirmed",
+                'status_from' => $order->status,
+                'status_to' => self::STATUS_CONFIRMED,
+            ]);
 
             $order->forceFill(['status' => self::STATUS_CONFIRMED])->save();
         });

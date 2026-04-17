@@ -66,6 +66,19 @@ new #[Title('Orders')] class extends Component {
         Flux::toast(variant: 'success', text: __('Order cancelled.'));
     }
 
+    public function confirmOrder(int $orderId): void
+    {
+        try {
+            Order::query()->findOrFail($orderId)->confirm();
+        } catch (\DomainException $exception) {
+            $this->addError('orders', $exception->getMessage());
+
+            return;
+        }
+
+        Flux::toast(variant: 'success', text: __('Order confirmed.'));
+    }
+
     /**
      * @return Collection<int, Product>
      */
@@ -84,7 +97,7 @@ new #[Title('Orders')] class extends Component {
     public function orders(): Collection
     {
         return Order::query()
-            ->with('items.product')
+            ->with(['activities', 'items.product'])
             ->latest()
             ->get();
     }
@@ -148,6 +161,12 @@ new #[Title('Orders')] class extends Component {
                     <div class="flex flex-wrap items-center gap-3">
                         <flux:badge>{{ ucfirst($order->status) }}</flux:badge>
 
+                        @if ($order->status === Order::STATUS_DRAFT)
+                            <flux:button type="button" variant="primary" icon="check" wire:click="confirmOrder({{ $order->id }})">
+                                {{ __('Confirm') }}
+                            </flux:button>
+                        @endif
+
                         @if ($order->status !== Order::STATUS_CANCELLED)
                             <flux:button type="button" variant="danger" icon="x-mark" wire:click="cancelOrder({{ $order->id }})">
                                 {{ __('Cancel') }}
@@ -160,6 +179,12 @@ new #[Title('Orders')] class extends Component {
                     @foreach ($order->items as $item)
                         <div wire:key="order-{{ $order->id }}-item-{{ $item->id }}">
                             {{ $item->product->name }} x {{ $item->quantity }} @ ${{ $item->unit_price }}
+                        </div>
+                    @endforeach
+
+                    @foreach ($order->activities as $activity)
+                        <div wire:key="order-{{ $order->id }}-activity-{{ $activity->id }}" class="text-neutral-500 dark:text-neutral-400">
+                            {{ $activity->description }}
                         </div>
                     @endforeach
                 </div>
