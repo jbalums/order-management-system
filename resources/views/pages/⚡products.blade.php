@@ -34,12 +34,6 @@ new #[Title('Products')] class extends Component {
 
         Flux::modal('product-form')->show();
     }
-    public function closeProductForm(): void
-    {
-        $this->resetProductForm();
-
-        Flux::modal('product-form')->close();
-    }
 
     public function openAdjustStockForm(int $productId): void
     {
@@ -72,7 +66,6 @@ new #[Title('Products')] class extends Component {
         Flux::modal('product-form')->close();
         Flux::toast(variant: 'success', text: __('Product created.'));
     }
-
 
     public function editProduct(int $productId): void
     {
@@ -218,6 +211,7 @@ new #[Title('Products')] class extends Component {
         $this->reset('editing_product_id', 'name', 'description', 'price', 'stock_quantity');
         $this->resetValidation(['name', 'description', 'price', 'stock_quantity']);
     }
+
     private function resetAdjustStockForm(): void
     {
         $this->reset('adjust_product_id', 'adjust_product_name', 'adjust_quantity', 'adjust_reason');
@@ -239,7 +233,7 @@ new #[Title('Products')] class extends Component {
         </div>
     </div>
 
-    <flux:modal name="product-form" class="w-full max-w-2xl" @close="closeProductForm">
+    <flux:modal name="product-form" class="w-full max-w-2xl" @close="dismissProductForm">
         <form wire:submit="{{ $editing_product_id ? 'updateProduct' : 'createProduct' }}" class="space-y-6">
             <div class="space-y-2">
                 <flux:heading size="lg" level="2">
@@ -315,7 +309,7 @@ new #[Title('Products')] class extends Component {
 
             <div class="flex flex-wrap items-center gap-3">
                 <flux:badge>{{ __('Stock: :count', ['count' => $product->stock_quantity]) }}</flux:badge>
-                <flux:badge>{{ __('Price: $:price', ['price' => $product->price]) }}</flux:badge>
+                <flux:badge>{{ __('Price: ₱ :price', ['price' => number_format($product->price, 2)]) }}</flux:badge>
                 <flux:button type="button" variant="filled" wire:click="editProduct({{ $product->id }})">
                     {{ __('Edit') }}
                 </flux:button>

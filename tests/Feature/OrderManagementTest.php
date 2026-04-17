@@ -28,6 +28,22 @@ class OrderManagementTest extends TestCase
             ->assertSee('Orders');
     }
 
+    public function test_order_form_modal_opens_for_creation(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test('pages::orders')
+            ->set('items', [
+                ['product_id' => '123', 'quantity' => 4],
+                ['product_id' => '456', 'quantity' => 2],
+            ])
+            ->call('openOrderForm')
+            ->assertSet('items', [
+                ['product_id' => '', 'quantity' => 1],
+            ])
+            ->assertDispatched('modal-show', name: 'order-form');
+    }
+
     public function test_order_can_be_created_as_draft_with_one_item(): void
     {
         $this->actingAs(User::factory()->create());
@@ -40,7 +56,8 @@ class OrderManagementTest extends TestCase
             ->set('items.0.product_id', $product->id)
             ->set('items.0.quantity', 2)
             ->call('createOrder')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('modal-close', name: 'order-form');
 
         $order = Order::query()->firstOrFail();
         $item = $order->items()->firstOrFail();

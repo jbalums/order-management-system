@@ -17,6 +17,25 @@ new #[Title('Orders')] class extends Component {
         ['product_id' => '', 'quantity' => 1],
     ];
 
+    public function openOrderForm(): void
+    {
+        $this->resetOrderForm();
+
+        Flux::modal('order-form')->show();
+    }
+
+    public function closeOrderForm(): void
+    {
+        $this->resetOrderForm();
+
+        Flux::modal('order-form')->close();
+    }
+
+    public function dismissOrderForm(): void
+    {
+        $this->resetOrderForm();
+    }
+
     public function addLine(): void
     {
         $this->items[] = ['product_id' => '', 'quantity' => 1];
@@ -46,10 +65,9 @@ new #[Title('Orders')] class extends Component {
             }
         });
 
-        $this->items = [
-            ['product_id' => '', 'quantity' => 1],
-        ];
+        $this->resetOrderForm();
 
+        Flux::modal('order-form')->close();
         Flux::toast(variant: 'success', text: __('Order created.'));
     }
 
@@ -101,47 +119,78 @@ new #[Title('Orders')] class extends Component {
             ->latest()
             ->get();
     }
+
+    private function resetOrderForm(): void
+    {
+        $this->items = [
+            ['product_id' => '', 'quantity' => 1],
+        ];
+
+        $this->resetValidation();
+    }
 };
 ?>
 
 <section class="w-full space-y-6">
-    <div>
-        <flux:heading size="xl" level="1">{{ __('Orders') }}</flux:heading>
-        <flux:subheading>{{ __('Create draft orders with product quantities and totals.') }}</flux:subheading>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <flux:heading size="xl" level="1">{{ __('Orders') }}</flux:heading>
+            <flux:subheading>{{ __('Create draft orders with product quantities and totals.') }}</flux:subheading>
+        </div>
+
+        <flux:button type="button" variant="primary" icon="plus" wire:click="openOrderForm">
+            {{ __('New order') }}
+        </flux:button>
     </div>
 
-    <form wire:submit="createOrder" class="space-y-4 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
-        <div class="flex items-center justify-between gap-4">
-            <flux:heading level="2">{{ __('New order') }}</flux:heading>
-            <flux:button type="button" variant="filled" icon="plus" wire:click="addLine">{{ __('Add item') }}</flux:button>
-        </div>
-
-        @error('items')
-            <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
-        @enderror
-
-        <div class="space-y-3">
-            @foreach ($items as $index => $item)
-                <div wire:key="order-item-{{ $index }}" class="grid gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
-                    <flux:select wire:model="items.{{ $index }}.product_id" :label="__('Product')" placeholder="{{ __('Choose a product') }}">
-                        @foreach ($this->products as $product)
-                            <flux:select.option :value="$product->id" wire:key="order-product-{{ $index }}-{{ $product->id }}">
-                                {{ $product->name }} ({{ __('stock: :count', ['count' => $product->stock_quantity]) }})
-                            </flux:select.option>
-                        @endforeach
-                    </flux:select>
-
-                    <flux:input wire:model="items.{{ $index }}.quantity" :label="__('Quantity')" type="number" min="1" step="1" required />
-
-                    <flux:button type="button" variant="ghost" icon="trash" wire:click="removeLine({{ $index }})" :disabled="count($items) === 1">
-                        {{ __('Remove') }}
-                    </flux:button>
+    <flux:modal name="order-form" class="w-full max-w-3xl" @close="dismissOrderForm">
+        <form wire:submit="createOrder" class="space-y-6">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="space-y-2">
+                    <flux:heading size="lg" level="2">{{ __('New order') }}</flux:heading>
+                    <flux:subheading>{{ __('Build a draft order from one or more product line items.') }}</flux:subheading>
                 </div>
-            @endforeach
-        </div>
 
-        <flux:button type="submit" variant="primary">{{ __('Create order') }}</flux:button>
-    </form>
+                <flux:button type="button" variant="filled" icon="plus" wire:click="addLine">
+                    {{ __('Add item') }}
+                </flux:button>
+            </div>
+
+            @error('items')
+                <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+            @enderror
+
+            <div class="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+                @foreach ($items as $index => $item)
+                    <div wire:key="order-item-{{ $index }}" class="grid gap-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+                        <flux:select wire:model="items.{{ $index }}.product_id" :label="__('Product')" placeholder="{{ __('Choose a product') }}">
+                            @foreach ($this->products as $product)
+                                <flux:select.option :value="$product->id" wire:key="order-product-{{ $index }}-{{ $product->id }}">
+                                    {{ $product->name }} ({{ __('stock: :count', ['count' => $product->stock_quantity]) }})
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+
+                        <flux:input wire:model="items.{{ $index }}.quantity" :label="__('Quantity')" type="number" min="1" step="1" required />
+
+                        <flux:button type="button" variant="ghost" icon="trash" wire:click="removeLine({{ $index }})" :disabled="count($items) === 1">
+                            {{ __('Remove') }}
+                        </flux:button>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <flux:button type="button" variant="filled" wire:click="closeOrderForm">
+                    {{ __('Cancel') }}
+                </flux:button>
+
+                <flux:button type="submit" variant="primary">
+                    {{ __('Create order') }}
+                </flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <div class="space-y-3">
         <flux:heading level="2">{{ __('Recent orders') }}</flux:heading>
