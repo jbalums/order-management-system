@@ -28,6 +28,25 @@ class ProductManagementTest extends TestCase
             ->assertSee('Products');
     }
 
+    public function test_product_form_modal_opens_for_creation(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test('pages::products')
+            ->set('editing_product_id', 123)
+            ->set('name', 'Existing name')
+            ->set('description', 'Existing description')
+            ->set('price', '15.00')
+            ->set('stock_quantity', 7)
+            ->call('openProductForm')
+            ->assertSet('editing_product_id', null)
+            ->assertSet('name', '')
+            ->assertSet('description', '')
+            ->assertSet('price', '')
+            ->assertSet('stock_quantity', 0)
+            ->assertDispatched('modal-show', name: 'product-form');
+    }
+
     public function test_product_can_be_created_with_initial_inventory_log(): void
     {
         $this->actingAs(User::factory()->create());
@@ -38,7 +57,8 @@ class ProductManagementTest extends TestCase
             ->set('price', '9.99')
             ->set('stock_quantity', 12)
             ->call('createProduct')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('modal-close', name: 'product-form');
 
         $product = Product::query()->where('name', 'Shipping Box')->firstOrFail();
 
@@ -83,12 +103,14 @@ class ProductManagementTest extends TestCase
         Livewire::test('pages::products')
             ->call('editProduct', $product->id)
             ->assertSet('editing_product_id', $product->id)
+            ->assertDispatched('modal-show', name: 'product-form')
             ->set('name', 'Updated Box')
             ->set('description', 'Updated description')
             ->set('price', '12.75')
             ->set('stock_quantity', 8)
             ->call('updateProduct')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('modal-close', name: 'product-form');
 
         $product->refresh();
 
@@ -126,17 +148,39 @@ class ProductManagementTest extends TestCase
         $this->assertDatabaseHas(Product::class, ['id' => $product->id]);
     }
 
+    public function test_adjust_stock_modal_opens_for_selected_product(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $product = Product::factory()->create([
+            'name' => 'Shipping Box',
+            'stock_quantity' => 5,
+        ]);
+
+        Livewire::test('pages::products')
+            ->set('adjust_product_id', 999)
+            ->set('adjust_product_name', 'Old product')
+            ->set('adjust_quantity', 4)
+            ->set('adjust_reason', 'Old reason')
+            ->call('openAdjustStockForm', $product->id)
+            ->assertSet('adjust_product_id', $product->id)
+            ->assertSet('adjust_product_name', 'Shipping Box')
+            ->assertSet('adjust_quantity', 0)
+            ->assertSet('adjust_reason', '')
+            ->assertDispatched('modal-show', name: 'adjust-form');
+    }
+
     public function test_stock_can_be_adjusted_with_inventory_log(): void
     {
         $this->actingAs(User::factory()->create());
         $product = Product::factory()->create(['stock_quantity' => 5]);
 
         Livewire::test('pages::products')
-            ->set('adjust_product_id', $product->id)
+            ->call('openAdjustStockForm', $product->id)
             ->set('adjust_quantity', 7)
             ->set('adjust_reason', 'Restock')
             ->call('adjustStock')
-            ->assertHasNoErrors();
+            ->assertHasNoErrors()
+            ->assertDispatched('modal-close', name: 'adjust-form');
 
         $this->assertSame(12, $product->refresh()->stock_quantity);
         $this->assertDatabaseHas(InventoryLog::class, [
@@ -153,7 +197,7 @@ class ProductManagementTest extends TestCase
         $product = Product::factory()->create(['stock_quantity' => 5]);
 
         Livewire::test('pages::products')
-            ->set('adjust_product_id', $product->id)
+            ->call('openAdjustStockForm', $product->id)
             ->set('adjust_quantity', -6)
             ->set('adjust_reason', 'Correction')
             ->call('adjustStock')
