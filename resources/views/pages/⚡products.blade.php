@@ -10,6 +10,8 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Products')] class extends Component {
+    public ?int $editing_product_id = null;
+
     public string $name = '';
 
     public string $description = '';
@@ -26,12 +28,7 @@ new #[Title('Products')] class extends Component {
 
     public function createProduct(): void
     {
-        $validated = $this->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'stock_quantity' => ['required', 'integer', 'min:0'],
-        ]);
+        $validated = $this->validate($this->productRules());
 
         $product = Product::create($validated);
 
@@ -43,9 +40,62 @@ new #[Title('Products')] class extends Component {
             ]);
         }
 
-        $this->reset('name', 'description', 'price', 'stock_quantity');
+        $this->resetProductForm();
 
         Flux::toast(variant: 'success', text: __('Product created.'));
+    }
+
+    public function editProduct(int $productId): void
+    {
+        $product = Product::query()->findOrFail($productId);
+
+        $this->editing_product_id = $product->id;
+        $this->name = $product->name;
+        $this->description = $product->description ?? '';
+        $this->price = $product->price;
+        $this->stock_quantity = $product->stock_quantity;
+    }
+
+    public function updateProduct(): void
+    {
+        $validated = $this->validate($this->productRules());
+
+        Product::query()
+            ->findOrFail($this->editing_product_id)
+            ->update($validated);
+
+        $this->resetProductForm();
+
+        Flux::toast(variant: 'success', text: __('Product updated.'));
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->resetProductForm();
+    }
+
+    public function deleteProduct(int $productId): void
+    {
+        $product = Product::query()
+            ->withCount('orderItems')
+            ->findOrFail($productId);
+
+        if ($product->order_items_count > 0) {
+            $this->addError('products', __('Products used in orders cannot be deleted.'));
+
+            return;
+        }
+
+        DB::transaction(function () use ($product): void {
+            $product->inventoryLogs()->delete();
+            $product->delete();
+        });
+
+        if ($this->editing_product_id === $product->id) {
+            $this->resetProductForm();
+        }
+
+        Flux::toast(variant: 'success', text: __('Product deleted.'));
     }
 
     public function adjustStock(): void
@@ -91,9 +141,28 @@ new #[Title('Products')] class extends Component {
     public function products(): Collection
     {
         return Product::query()
-            ->withCount('inventoryLogs')
+            ->withCount(['inventoryLogs', 'orderItems'])
             ->latest()
             ->get();
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    private function productRules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'stock_quantity' => ['required', 'integer', 'min:0'],
+        ];
+    }
+
+    private function resetProductForm(): void
+    {
+        $this->reset('editing_product_id', 'name', 'description', 'price', 'stock_quantity');
+        $this->resetValidation(['name', 'description', 'price', 'stock_quantity']);
     }
 };
 ?>
@@ -105,8 +174,16 @@ new #[Title('Products')] class extends Component {
     </div>
 
     <div class="grid gap-6 lg:grid-cols-2">
-        <form wire:submit="createProduct" class="space-y-4 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
-            <flux:heading level="2">{{ __('Add product') }}</flux:heading>
+        <form wire:submit="{{ $editing_product_id ? 'updateProduct' : 'createProduct' }}" class="space-y-4 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
+            <div class="flex items-center justify-between gap-4">
+                <flux:heading level="2">{{ $editing_product_id ? __('Edit product') : __('Add product') }}</flux:heading>
+
+                @if ($editing_product_id)
+                    <flux:button type="button" variant="ghost" wire:click="cancelEdit">
+                        {{ __('Cancel') }}
+                    </flux:button>
+                @endif
+            </div>
 
             <flux:input wire:model="name" :label="__('Name')" required />
             <flux:textarea wire:model="description" :label="__('Description')" rows="3" />
@@ -116,7 +193,9 @@ new #[Title('Products')] class extends Component {
                 <flux:input wire:model="stock_quantity" :label="__('Initial stock')" type="number" min="0" step="1" required />
             </div>
 
-            <flux:button type="submit" variant="primary">{{ __('Save product') }}</flux:button>
+            <flux:button type="submit" variant="primary">
+                {{ $editing_product_id ? __('Update product') : __('Save product') }}
+            </flux:button>
         </form>
 
         <form wire:submit="adjustStock" class="space-y-4 rounded-xl border border-neutral-200 p-6 dark:border-neutral-700">
@@ -140,6 +219,10 @@ new #[Title('Products')] class extends Component {
     <div class="space-y-3">
         <flux:heading level="2">{{ __('Current inventory') }}</flux:heading>
 
+        @error('products')
+            <flux:callout variant="danger" icon="x-circle" heading="{{ $message }}" />
+        @enderror
+
         @forelse ($this->products as $product)
             <div wire:key="product-{{ $product->id }}" class="flex flex-col gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -151,6 +234,12 @@ new #[Title('Products')] class extends Component {
                 <div class="flex flex-wrap items-center gap-3">
                     <flux:badge>{{ __('Stock: :count', ['count' => $product->stock_quantity]) }}</flux:badge>
                     <flux:badge>{{ __('Price: $:price', ['price' => $product->price]) }}</flux:badge>
+                    <flux:button type="button" variant="filled" wire:click="editProduct({{ $product->id }})">
+                        {{ __('Edit') }}
+                    </flux:button>
+                    <flux:button type="button" variant="danger" wire:click="deleteProduct({{ $product->id }})" :disabled="$product->order_items_count > 0">
+                        {{ __('Delete') }}
+                    </flux:button>
                 </div>
             </div>
         @empty
