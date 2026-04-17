@@ -13,6 +13,13 @@ class ExampleTest extends TestCase
     {
         $response = $this->get(route('home'));
 
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('Order Management System')
+            ->assertSee('Run product stock and order flow')
+            ->assertSee('Product control')
+            ->assertSee('Order handling')
+            ->assertSee('Activity history')
+            ->assertSee('Basic reporting');
     }
 }
